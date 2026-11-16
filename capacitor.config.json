@@ -1,5 +1,5 @@
 {
   "appId": "com.theman.security",
   "appName": "THE MAN",
-  "webDir": "www"
+  "webDir": "dist"
 }
