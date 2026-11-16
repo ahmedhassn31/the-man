@@ -81,6 +81,9 @@ footer{text-align:center;padding:18px;color:#00ff55}
 
 <script type="module">
 import { Network } from '@capacitor/network';
+import { registerPlugin } from '@capacitor/core';
+
+const LocalNetwork = registerPlugin('LocalNetwork');
 
 const result = document.getElementById('networkResult');
 const terminal = document.getElementById('terminal');
@@ -91,19 +94,26 @@ window.showScreen = function(id){
 };
 
 window.scanNetwork = async function(){
-  result.textContent = 'جارٍ فحص حالة الاتصال...';
+  result.textContent = 'جارٍ فحص الشبكة وعنوان IP...';
+
   try {
     const status = await Network.getStatus();
+    const local = await LocalNetwork.getInfo();
+
     result.innerHTML =
       'حالة الاتصال: <span class="status">'+(status.connected?'متصل':'غير متصل')+'</span><br>'+
       'نوع الاتصال: <span class="status">'+status.connectionType+'</span><br>'+
-      'الإنترنت: <span class="status">'+(status.connected?'متاح حسب حالة النظام':'غير متاح حسب حالة النظام')+'</span>';
+      'عنوان IP المحلي: <span class="status">'+local.ip+'</span><br>'+
+      'الإنترنت: <span class="status">'+(status.connected?'متصل حسب حالة النظام':'غير متصل حسب حالة النظام')+'</span>';
+
     terminal.innerHTML =
-      '[+] اكتمل فحص الاتصال<br>'+
+      '[+] اكتمل فحص الشبكة<br>'+
       '[+] الحالة: '+(status.connected?'متصل':'غير متصل')+'<br>'+
-      '[+] النوع: '+status.connectionType;
+      '[+] النوع: '+status.connectionType+'<br>'+
+      '[+] IP المحلي: '+local.ip;
+
   } catch(error) {
-    result.textContent = 'تعذر قراءة حالة الشبكة: '+error.message;
+    result.textContent = 'تعذر فحص الشبكة: '+error.message;
   }
 };
 
