@@ -16,6 +16,12 @@ import com.getcapacitor.JSArray;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.ArrayList;
+import java.util.List;
 
 @CapacitorPlugin(name = "LocalNetwork")
 public class LocalNetworkPlugin extends Plugin {
@@ -78,34 +84,144 @@ public class LocalNetworkPlugin extends Plugin {
 
     @PluginMethod
     public void scanDevices(PluginCall call) {
-        JSArray devices = new JSArray();
         Process process = null;
 
         try {
+            ConnectivityManager cm =
+                (ConnectivityManager) getContext().getSystemService(
+                    Context.CONNECTIVITY_SERVICE
+                );
+
+            Network network = cm.getActiveNetwork();
+            LinkProperties links = network == null ? null :
+                cm.getLinkProperties(network);
+            NetworkCapabilities caps = network == null ? null :
+                cm.getNetworkCapabilities(network);
+
+            if (links == null || caps == null ||
+                !caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
+                call.reject("اتصل بشبكة Wi-Fi أولاً.");
+                return;
+            }
+
+            String localIp = null;
+            int prefix = -1;
+
+            for (LinkAddress item : links.getLinkAddresses()) {
+                if (item.getAddress() instanceof java.net.Inet4Address) {
+                    localIp = item.getAddress().getHostAddress();
+                    prefix = item.getPrefixLength();
+                    break;
+                }
+            }
+
+            if (localIp == null || prefix < 16 || prefix > 30) {
+                call.reject("تعذر تحديد نطاق شبكة Wi-Fi.");
+                return;
+            }
+
+            String[] octets = localIp.split("\\.");
+            if (octets.length != 4) {
+                call.reject("عنوان IP غير صالح.");
+                return;
+            }
+
+            int base = (Integer.parseInt(octets[0]) << 24) |
+                       (Integer.parseInt(octets[1]) << 16) |
+                       (Integer.parseInt(octets[2]) << 8) |
+                       Integer.parseInt(octets[3]);
+
+            int mask = (int)(0xFFFFFFFFL << (32 - prefix));
+            int networkBase = base & mask;
+            int broadcast = networkBase | ~mask;
+            int hostCount = broadcast - networkBase - 1;
+
+            if (hostCount > 512) {
+                call.reject("نطاق الشبكة كبير جدًا للفحص.");
+                return;
+            }
+
+            ExecutorService executor = Executors.newFixedThreadPool(12);
+            List<java.util.concurrent.Callable<Void>> tasks = new ArrayList<>();
+
+            for (int i = 1; i <= hostCount; i++) {
+                int address = networkBase + i;
+                String target =
+                    ((address >>> 24) & 255) + "." +
+                    ((address >>> 16) & 255) + "." +
+                    ((address >>> 8) & 255) + "." +
+                    (address & 255);
+
+                if (target.equals(localIp)) continue;
+
+                final String targetIp = target;
+
+                tasks.add(() -> {
+                    Process ping = null;
+                    try {
+                        ping = new ProcessBuilder(
+                            "/system/bin/ping", "-c", "1", "-W", "1", targetIp
+                        ).redirectErrorStream(true).start();
+
+                        ping.waitFor();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    } catch (Exception ignored) {
+                    } finally {
+                        if (ping != null) ping.destroy();
+                    }
+                    return null;
+                });
+            }
+
+            try {
+                executor.invokeAll(tasks, 30, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw e;
+            } finally {
+                executor.shutdownNow();
+            }
+
+            String iface = links.getInterfaceName();
+            if (iface == null || !iface.startsWith("wlan")) {
+                call.reject("تعذر تحديد واجهة Wi-Fi.");
+                return;
+            }
+
             process = new ProcessBuilder(
-                "/system/bin/ip", "neigh", "show", "dev", "wlan0"
+                "/system/bin/ip", "neigh", "show", "dev", iface
             ).redirectErrorStream(true).start();
 
+            JSArray devices = new JSArray();
+
             try (java.io.BufferedReader reader =
-                    new java.io.BufferedReader(
-                        new java.io.InputStreamReader(process.getInputStream()))) {
+                new java.io.BufferedReader(
+                    new java.io.InputStreamReader(process.getInputStream()))) {
 
                 String line;
                 while ((line = reader.readLine()) != null) {
                     String[] parts = line.trim().split("\\s+");
-                    if (parts.length < 4) continue;
+                    if (parts.length < 2) continue;
 
                     String ip = parts[0];
                     String mac = null;
+                    boolean failed = false;
 
-                    for (int i = 0; i < parts.length - 1; i++) {
-                        if ("lladdr".equals(parts[i])) {
+                    for (int i = 1; i < parts.length; i++) {
+                        if ("lladdr".equals(parts[i]) &&
+                            i + 1 < parts.length) {
                             mac = parts[i + 1];
-                            break;
+                        }
+                        if ("FAILED".equals(parts[i]) ||
+                            "INCOMPLETE".equals(parts[i])) {
+                            failed = true;
                         }
                     }
 
-                    if (mac == null || mac.equals("00:00:00:00:00:00")) {
+                    if (failed || mac == null ||
+                        ip.equals(localIp) ||
+                        mac.equals("00:00:00:00:00:00")) {
                         continue;
                     }
 
@@ -118,7 +234,7 @@ public class LocalNetworkPlugin extends Plugin {
 
             int exitCode = process.waitFor();
             if (exitCode != 0) {
-                throw new Exception("فشل أمر قراءة جدول الشبكة: " + exitCode);
+                throw new Exception("فشل قراءة جدول الأجهزة.");
             }
 
             JSObject result = new JSObject();
@@ -127,7 +243,7 @@ public class LocalNetworkPlugin extends Plugin {
             call.resolve(result);
 
         } catch (Exception e) {
-            call.reject("تعذر قراءة الأجهزة: " + e.getMessage(), e);
+            call.reject("تعذر فحص الأجهزة: " + e.getMessage(), e);
         } finally {
             if (process != null) process.destroy();
         }
