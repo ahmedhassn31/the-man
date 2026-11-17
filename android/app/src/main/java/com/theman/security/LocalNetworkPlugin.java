@@ -79,25 +79,46 @@ public class LocalNetworkPlugin extends Plugin {
     @PluginMethod
     public void scanDevices(PluginCall call) {
         JSArray devices = new JSArray();
+        Process process = null;
 
-        try (BufferedReader reader =
-                 new BufferedReader(new FileReader("/proc/net/arp"))) {
+        try {
+            process = new ProcessBuilder(
+                "/system/bin/ip", "neigh", "show", "dev", "wlan0"
+            ).redirectErrorStream(true).start();
 
-            String line;
-            reader.readLine();
+            try (java.io.BufferedReader reader =
+                    new java.io.BufferedReader(
+                        new java.io.InputStreamReader(process.getInputStream()))) {
 
-            while ((line = reader.readLine()) != null) {
-                String[] parts = line.trim().split("\\s+");
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    String[] parts = line.trim().split("\\s+");
+                    if (parts.length < 4) continue;
 
-                if (parts.length >= 4
-                    && !parts[0].equals("0.0.0.0")
-                    && !parts[3].equals("00:00:00:00:00:00")) {
+                    String ip = parts[0];
+                    String mac = null;
+
+                    for (int i = 0; i < parts.length - 1; i++) {
+                        if ("lladdr".equals(parts[i])) {
+                            mac = parts[i + 1];
+                            break;
+                        }
+                    }
+
+                    if (mac == null || mac.equals("00:00:00:00:00:00")) {
+                        continue;
+                    }
 
                     JSObject device = new JSObject();
-                    device.put("ip", parts[0]);
-                    device.put("mac", parts[3]);
+                    device.put("ip", ip);
+                    device.put("mac", mac);
                     devices.put(device);
                 }
+            }
+
+            int exitCode = process.waitFor();
+            if (exitCode != 0) {
+                throw new Exception("فشل أمر قراءة جدول الشبكة: " + exitCode);
             }
 
             JSObject result = new JSObject();
@@ -107,6 +128,8 @@ public class LocalNetworkPlugin extends Plugin {
 
         } catch (Exception e) {
             call.reject("تعذر قراءة الأجهزة: " + e.getMessage(), e);
+        } finally {
+            if (process != null) process.destroy();
         }
     }
 }
