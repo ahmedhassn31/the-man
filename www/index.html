@@ -33,6 +33,7 @@ footer{text-align:center;padding:18px;color:#00ff55}
 
 <div class="grid">
 <div class="card" onclick="showScreen('network')"><span>🌐</span>فحص الشبكة</div>
+<div class="card" onclick="showScreen('devices')"><span>📱</span>الأجهزة المتصلة</div>
 <div class="card" onclick="showScreen('ports')"><span>🔐</span>فحص المنافذ</div>
 <div class="card" onclick="showScreen('analysis')"><span>📡</span>تحليل الشبكات</div>
 <div class="card" onclick="showScreen('phone')"><span>🛡️</span>أمان الهاتف</div>
@@ -44,6 +45,12 @@ footer{text-align:center;padding:18px;color:#00ff55}
 <h3>🌐 فحص اتصال الشبكة</h3>
 <div class="result" id="networkResult">اضغط تحديث لبدء الفحص</div>
 <button onclick="scanNetwork()">تحديث حالة الشبكة</button>
+</section>
+
+<section id="devices" class="panel hidden">
+<h3>📱 الأجهزة المتصلة بالشبكة</h3>
+<div class="result" id="devicesResult">اضغط بدء الفحص لاكتشاف الأجهزة</div>
+<button onclick="scanDevices()">بدء فحص الأجهزة</button>
 </section>
 
 <section id="ports" class="panel hidden">
@@ -114,6 +121,35 @@ window.scanNetwork = async function(){
 
   } catch(error) {
     result.textContent = 'تعذر فحص الشبكة: '+error.message;
+  }
+};
+
+
+window.scanDevices = async function() {
+  const output = document.getElementById('devicesResult');
+  output.textContent = 'جارٍ قراءة الأجهزة التي تعرّف عليها الهاتف...';
+
+  try {
+    const data = await LocalNetwork.scanDevices();
+    output.textContent = '';
+
+    if (!data.devices || data.devices.length === 0) {
+      output.textContent = 'لم يتم العثور على أجهزة في جدول الشبكة حتى الآن.';
+      return;
+    }
+
+    const heading = document.createElement('p');
+    heading.textContent = 'عدد الأجهزة المكتشفة: ' + data.count;
+    output.appendChild(heading);
+
+    data.devices.forEach(device => {
+      const item = document.createElement('p');
+      item.textContent = 'IP: ' + device.ip + ' | MAC: ' + device.mac;
+      output.appendChild(item);
+    });
+
+  } catch (error) {
+    output.textContent = 'تعذر فحص الأجهزة: ' + error.message;
   }
 };
 

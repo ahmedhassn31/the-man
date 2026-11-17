@@ -12,6 +12,10 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.JSObject;
+import com.getcapacitor.JSArray;
+
+import java.io.BufferedReader;
+import java.io.FileReader;
 
 @CapacitorPlugin(name = "LocalNetwork")
 public class LocalNetworkPlugin extends Plugin {
@@ -65,11 +69,44 @@ public class LocalNetworkPlugin extends Plugin {
             result.put("connected", true);
             result.put("ip", ip);
             result.put("type", type);
-
             call.resolve(result);
 
         } catch (Exception e) {
             call.reject("تعذر قراءة بيانات الشبكة: " + e.getMessage(), e);
+        }
+    }
+
+    @PluginMethod
+    public void scanDevices(PluginCall call) {
+        JSArray devices = new JSArray();
+
+        try (BufferedReader reader =
+                 new BufferedReader(new FileReader("/proc/net/arp"))) {
+
+            String line;
+            reader.readLine();
+
+            while ((line = reader.readLine()) != null) {
+                String[] parts = line.trim().split("\\s+");
+
+                if (parts.length >= 4
+                    && !parts[0].equals("0.0.0.0")
+                    && !parts[3].equals("00:00:00:00:00:00")) {
+
+                    JSObject device = new JSObject();
+                    device.put("ip", parts[0]);
+                    device.put("mac", parts[3]);
+                    devices.put(device);
+                }
+            }
+
+            JSObject result = new JSObject();
+            result.put("devices", devices);
+            result.put("count", devices.length());
+            call.resolve(result);
+
+        } catch (Exception e) {
+            call.reject("تعذر قراءة الأجهزة: " + e.getMessage(), e);
         }
     }
 }
