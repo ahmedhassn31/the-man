@@ -30,6 +30,7 @@ public class LocalNetworkPlugin extends Plugin {
             if (network == null) {
                 result.put("connected", false);
                 result.put("ip", "غير متصل");
+                result.put("type", "unknown");
                 call.resolve(result);
                 return;
             }
@@ -41,11 +42,9 @@ public class LocalNetworkPlugin extends Plugin {
 
             if (links != null) {
                 for (LinkAddress address : links.getLinkAddresses()) {
-                    String host = address.getAddress().getHostAddress();
-
                     if (address.getAddress() instanceof java.net.Inet4Address
                         && !address.getAddress().isLoopbackAddress()) {
-                        ip = host;
+                        ip = address.getAddress().getHostAddress();
                         break;
                     }
                 }
@@ -70,7 +69,7 @@ public class LocalNetworkPlugin extends Plugin {
             call.resolve(result);
 
         } catch (Exception e) {
-            call.reject("تعذر قراءة بيانات الشبكة", e);
+            call.reject("تعذر قراءة بيانات الشبكة: " + e.getMessage(), e);
         }
     }
 }
