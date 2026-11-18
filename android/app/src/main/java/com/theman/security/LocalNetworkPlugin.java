@@ -194,55 +194,57 @@ public class LocalNetworkPlugin extends Plugin {
                 return;
             }
 
-            process = new ProcessBuilder(
-                "/system/bin/ip", "neigh", "show", "dev", iface
-            ).redirectErrorStream(true).start();
-
             StringBuilder rawOutput = new StringBuilder();
             JSArray devices = new JSArray();
             List<String> discoveredIps = new ArrayList<>();
 
-            try (java.io.BufferedReader reader =
-                new java.io.BufferedReader(
-                    new java.io.InputStreamReader(process.getInputStream()))) {
+            try {
+                process = new ProcessBuilder(
+                    "/system/bin/ip", "neigh", "show", "dev", iface
+                ).redirectErrorStream(true).start();
 
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    rawOutput.append(line).append("\\n");
-                    String[] parts = line.trim().split("\\s+");
-                    if (parts.length < 2) continue;
+                try (java.io.BufferedReader reader =
+                    new java.io.BufferedReader(
+                        new java.io.InputStreamReader(process.getInputStream()))) {
 
-                    String ip = parts[0];
-                    String mac = null;
-                    boolean failed = false;
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        rawOutput.append(line).append("\\n");
+                        String[] parts = line.trim().split("\\s+");
+                        if (parts.length < 2) continue;
 
-                    for (int i = 1; i < parts.length; i++) {
-                        if ("lladdr".equals(parts[i]) &&
-                            i + 1 < parts.length) {
-                            mac = parts[i + 1];
+                        String ip = parts[0];
+                        String mac = null;
+                        boolean failed = false;
+
+                        for (int i = 1; i < parts.length; i++) {
+                            if ("lladdr".equals(parts[i]) && i + 1 < parts.length) {
+                                mac = parts[i + 1];
+                            }
+                            if ("FAILED".equals(parts[i]) || "INCOMPLETE".equals(parts[i])) {
+                                failed = true;
+                            }
                         }
-                        if ("FAILED".equals(parts[i]) ||
-                            "INCOMPLETE".equals(parts[i])) {
-                            failed = true;
-                        }
-                    }
 
-                    if (failed || mac == null ||
-                        ip.equals(localIp) ||
-                        mac.equals("00:00:00:00:00:00")) {
-                        continue;
-                    }
+                        if (failed || mac == null || ip.equals(localIp) ||
+                            mac.equals("00:00:00:00:00:00")) continue;
 
-                    JSObject device = new JSObject();
-                    device.put("ip", ip);
-                    device.put("mac", mac);
-                    devices.put(device);
-                    discoveredIps.add(ip);
+                        JSObject device = new JSObject();
+                        device.put("ip", ip);
+                        device.put("mac", mac);
+                        devices.put(device);
+                        discoveredIps.add(ip);
+                    }
                 }
-            }
 
-            int exitCode = process.waitFor();
-            rawOutput.append("\\nExit code: ").append(exitCode);
+                int exitCode = process.waitFor();
+                rawOutput.append("\\nExit code: ").append(exitCode);
+
+            } catch (Exception e) {
+                rawOutput.append("\\nNeighbor table error: ").append(e.getMessage());
+                if (process != null) process.destroy();
+                process = null;
+            }
 
             for (String ip : reachableIps) {
                 if (!discoveredIps.contains(ip)) {
