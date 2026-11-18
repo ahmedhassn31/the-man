@@ -134,7 +134,11 @@ window.scanDevices = async function() {
     output.textContent = '';
 
     if (!data.devices || data.devices.length === 0) {
-      output.textContent = 'لم يتم العثور على أجهزة في جدول الشبكة حتى الآن.';
+      output.textContent =
+        'لم يتم العثور على أجهزة.\\n' +
+        'واجهة الشبكة: ' + data.interface + '\\n' +
+        'IP الهاتف: ' + data.localIp + '\\n' +
+        'نتيجة أمر النظام:\\n' + (data.debug || '(لا توجد مخرجات)');
       return;
     }
 

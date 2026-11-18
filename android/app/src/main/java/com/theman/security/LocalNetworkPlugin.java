@@ -193,6 +193,7 @@ public class LocalNetworkPlugin extends Plugin {
                 "/system/bin/ip", "neigh", "show", "dev", iface
             ).redirectErrorStream(true).start();
 
+            StringBuilder rawOutput = new StringBuilder();
             JSArray devices = new JSArray();
 
             try (java.io.BufferedReader reader =
@@ -201,6 +202,7 @@ public class LocalNetworkPlugin extends Plugin {
 
                 String line;
                 while ((line = reader.readLine()) != null) {
+                    rawOutput.append(line).append("\\n");
                     String[] parts = line.trim().split("\\s+");
                     if (parts.length < 2) continue;
 
@@ -240,6 +242,9 @@ public class LocalNetworkPlugin extends Plugin {
             JSObject result = new JSObject();
             result.put("devices", devices);
             result.put("count", devices.length());
+            result.put("debug", rawOutput.toString());
+            result.put("interface", iface);
+            result.put("localIp", localIp);
             call.resolve(result);
 
         } catch (Exception e) {
