@@ -143,6 +143,8 @@ public class LocalNetworkPlugin extends Plugin {
 
             ExecutorService executor = Executors.newFixedThreadPool(12);
             List<java.util.concurrent.Callable<Void>> tasks = new ArrayList<>();
+            List<String> reachableIps =
+                java.util.Collections.synchronizedList(new ArrayList<>());
 
             for (int i = 1; i <= hostCount; i++) {
                 int address = networkBase + i;
@@ -163,7 +165,10 @@ public class LocalNetworkPlugin extends Plugin {
                             "/system/bin/ping", "-c", "1", "-W", "1", targetIp
                         ).redirectErrorStream(true).start();
 
-                        ping.waitFor();
+                        int pingExit = ping.waitFor();
+                        if (pingExit == 0) {
+                            reachableIps.add(targetIp);
+                        }
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
                     } catch (Exception ignored) {
@@ -195,6 +200,7 @@ public class LocalNetworkPlugin extends Plugin {
 
             StringBuilder rawOutput = new StringBuilder();
             JSArray devices = new JSArray();
+            List<String> discoveredIps = new ArrayList<>();
 
             try (java.io.BufferedReader reader =
                 new java.io.BufferedReader(
@@ -231,12 +237,23 @@ public class LocalNetworkPlugin extends Plugin {
                     device.put("ip", ip);
                     device.put("mac", mac);
                     devices.put(device);
+                    discoveredIps.add(ip);
                 }
             }
 
             int exitCode = process.waitFor();
             if (exitCode != 0) {
                 throw new Exception("فشل قراءة جدول الأجهزة.");
+            }
+
+            for (String ip : reachableIps) {
+                if (!discoveredIps.contains(ip)) {
+                    JSObject device = new JSObject();
+                    device.put("ip", ip);
+                    device.put("mac", "غير متاح");
+                    devices.put(device);
+                    discoveredIps.add(ip);
+                }
             }
 
             JSObject result = new JSObject();
