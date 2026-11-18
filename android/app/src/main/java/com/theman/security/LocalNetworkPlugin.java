@@ -241,10 +241,7 @@ public class LocalNetworkPlugin extends Plugin {
                 }
             }
 
-            int exitCode = process.waitFor();
-            if (exitCode != 0) {
-                throw new Exception("فشل قراءة جدول الأجهزة.");
-            }
+            process.waitFor();
 
             for (String ip : reachableIps) {
                 if (!discoveredIps.contains(ip)) {
