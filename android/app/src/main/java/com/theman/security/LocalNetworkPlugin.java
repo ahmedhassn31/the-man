@@ -241,7 +241,8 @@ public class LocalNetworkPlugin extends Plugin {
                 }
             }
 
-            process.waitFor();
+            int exitCode = process.waitFor();
+            rawOutput.append("\\nExit code: ").append(exitCode);
 
             for (String ip : reachableIps) {
                 if (!discoveredIps.contains(ip)) {
