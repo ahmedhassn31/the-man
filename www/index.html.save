@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>THE MAN</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#000;color:#00ff55;font-family:Arial,sans-serif}
+header{text-align:center;padding:24px 10px;background:#050505;border-bottom:1px solid #00ff55}
+h1{font-size:42px;margin:5px}
+p{color:white}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:15px}
+.card{border:2px solid #00ff55;border-radius:15px;padding:20px 8px;text-align:center;background:#080808;color:white;font-size:17px;cursor:pointer}
+.card:active{background:#12351d}
+.card span{display:block;font-size:30px;margin-bottom:10px}
+.panel{border:1px solid #00ff55;border-radius:12px;margin:15px;padding:15px;background:#080808}
+.panel h3{margin-top:0}
+.result{color:white;line-height:2;overflow-wrap:anywhere}
+.status{color:#00ff55;font-weight:bold}
+button{background:#00ff55;color:#000;border:0;border-radius:8px;padding:12px;font-weight:bold;width:100%;font-size:16px;margin-top:10px}
+.terminal{border:1px solid #00ff55;margin:15px;padding:15px;border-radius:12px;color:#00ff55;line-height:2;min-height:80px}
+footer{text-align:center;padding:18px;color:#00ff55}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<header>
+<h1>THE MAN</h1>
+<p>مختبر الأمن السيبراني للأندرويد</p>
+<p>افحص • حلل • اختبر • احمِ</p>
+</header>
+
+<div class="grid">
+<div class="card" onclick="showScreen('network')"><span>🌐</span>فحص الشبكة</div>
+<div class="card" onclick="showScreen('ports')"><span>🔐</span>فحص المنافذ</div>
+<div class="card" onclick="showScreen('analysis')"><span>📡</span>تحليل الشبكات</div>
+<div class="card" onclick="showScreen('phone')"><span>🛡️</span>أمان الهاتف</div>
+<div class="card" onclick="showScreen('tools')"><span>⚙️</span>أدوات الأمان</div>
+<div class="card" onclick="showScreen('about')"><span>👨‍💻</span>حول التطبيق</div>
+</div>
+
+<section id="network" class="panel hidden">
+<h3>🌐 فحص اتصال الشبكة</h3>
+<div class="result" id="networkResult">اضغط تحديث لبدء الفحص</div>
+<button onclick="scanNetwork()">تحديث حالة الشبكة</button>
+</section>
+
+<section id="ports" class="panel hidden">
+<h3>🔐 فحص المنافذ</h3>
+<div class="result">فحص المنافذ على الأجهزة المصرح لك باختبارها. ستتم إضافة أداة الفحص في المرحلة التالية.</div>
+</section>
+
+<section id="analysis" class="panel hidden">
+<h3>📡 تحليل الشبكات</h3>
+<div class="result">ستظهر هنا معلومات الاتصال وسجل تغيّر حالة الشبكة.</div>
+</section>
+
+<section id="phone" class="panel hidden">
+<h3>🛡️ أمان الهاتف</h3>
+<div class="result">قسم تشخيص أمان الهاتف قيد التطوير.</div>
+</section>
+
+<section id="tools" class="panel hidden">
+<h3>⚙️ أدوات الأمان</h3>
+<div class="result">مجموعة أدوات التشخيص الأمني قيد التطوير.</div>
+</section>
+
+<section id="about" class="panel hidden">
+<h3>👨‍💻 حول THE MAN</h3>
+<div class="result">الإصدار 1.1<br>مختبر الأمن السيبراني للأندرويد</div>
+</section>
+
+<div class="terminal" id="terminal">
+[+] THE MAN الإصدار 1.1<br>
+[+] النظام جاهز للعمل<br>
+[+] في انتظار الفحص
+</div>
+
+<footer>استخدم الأدوات على الأجهزة والشبكات التي تملك تصريحاً لاختبارها</footer>
+
+<script type="module">
+import { Network } from '@capacitor/network';
+import { registerPlugin } from '@capacitor/core';
+
+const LocalNetwork = registerPlugin('LocalNetwork');
+
+const result = document.getElementById('networkResult');
+const terminal = document.getElementById('terminal');
+
+window.showScreen = function(id){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.add('hidden'));
+  document.getElementById(id).classList.remove('hidden');
+};
+
+window.scanNetwork = async function(){
+  result.textContent = 'جارٍ فحص الشبكة وعنوان IP...';
+
+  try {
+    const status = await Network.getStatus();
+    const local = await LocalNetwork.getInfo();
+
+    result.innerHTML =
+      'حالة الاتصال: <span class="status">'+(status.connected?'متصل':'غير متصل')+'</span><br>'+
+      'نوع الاتصال: <span class="status">'+status.connectionType+'</span><br>'+
+      'عنوان IP المحلي: <span class="status">'+local.ip+'</span><br>'+
+      'الإنترنت: <span class="status">'+(status.connected?'متصل حسب حالة النظام':'غير متصل حسب حالة النظام')+'</span>';
+
+    terminal.innerHTML =
+      '[+] اكتمل فحص الشبكة<br>'+
+      '[+] الحالة: '+(status.connected?'متصل':'غير متصل')+'<br>'+
+      '[+] النوع: '+status.connectionType+'<br>'+
+      '[+] IP المحلي: '+local.ip;
+
+  } catch(error) {
+    result.textContent = 'تعذر فحص الشبكة: '+error.message;
+  }
+};
+
+Network.addListener('networkStatusChange', status=>{
+  terminal.innerHTML =
+    '[+] تم تغيير حالة الشبكة<br>'+
+    '[+] الحالة: '+(status.connected?'متصل':'غير متصل')+'<br>'+
+    '[+] النوع: '+status.connectionType;
+});
+</script>
+</body>
+</html>
+cd ~/THE_MAN
+
+python - <<'PY'
+from pathlib import Path
+
+p = Path("www/index.html")
+s = p.read_text(encoding="utf-8")
+
+old = '<div class="card" onclick="showScreen(\'network\')"><span>🌐</span>فحص الشبكة</div>'
+new = old + '\n<div class="card" onclick="showScreen(\'devices\')"><span>📱</span>الأجهزة المتصلة</div>'
+
+if 'showScreen(\'devices\')' in s:
+    print("البطاقة موجودة بالفعل")
+elif old in s:
+    p.write_text(s.replace(old, new, 1), encoding="utf-8")
+    print("تمت إضافة بطاقة الأجهزة المتصلة بنجاح")
+else:
+    print("لم يتم العثور على مكان الإضافة، لم يتغير الملف")
+PY
+cd ~/THE_MAN
+
+python - <<'PY'
+from pathlib import Path
+
+p = Path("www/index.html")
+s = p.read_text(encoding="utf-8")
+
+old = '<div class="card" onclick="showScreen(\'network\')"><span>🌐</span>فحص الشبكة</div>'
+new = old + '\n<div class="card" onclick="showScreen(\'devices\')"><span>📱</span>الأجهزة المتصلة</div>'
+
+if 'showScreen(\'devices\')' in s:
+    print("البطاقة موجودة بالفعل")
+elif old in s:
+    p.write_text(s.replace(old, new, 1), encoding="utf-8")
+    print("تمت إضافة بطاقة الأجهزة المتصلة بنجاح")
+else:
+    print("لم يتم العثور على مكان الإضافة، لم يتغير الملف")
+PY
+
